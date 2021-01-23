@@ -1,4 +1,4 @@
-const version = '1.0'
+const version = '1.3'
 
 const appAssets = [
   'index.html',
@@ -15,9 +15,9 @@ self.addEventListener('install', e => {
 })
 
 self.addEventListener('activate', e => {
-  let cleaned = caches.keys(keys => {
+  let cleaned = caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== `static-${version}` && key.match('static')) {
+      if (key !== `static-${version}` && key.match('static-')) {
         return caches.delete(key)
       }
     })
@@ -26,14 +26,14 @@ self.addEventListener('activate', e => {
   e.waitUntil(cleaned)
 })
 
-const staticCache = req => {
+const staticCache = (req, cacheName = `static-${version}`) => {
   return caches.match(req).then(cachedRes => {
     if (cachedRes) {
       return cachedRes
     }
 
     return fetch(req).then(networkRes => {
-      caches.open(`static-${version}`).then(cache => {
+      caches.open(cacheName).then(cache => {
         cache.put(req, networkRes)
       })
 
@@ -42,9 +42,28 @@ const staticCache = req => {
   })
 }
 
+const fallbackCache = req => {
+  return fetch(req).then(networkRes => {
+    if (!networkRes.ok) {
+      throw 'Fetch error'
+    }
+
+    caches.open(`static-${version}`).then(cache => {
+      cache.put(req, networkRes)
+    })
+
+    return networkRes.clone()
+  })
+  .catch(err => caches.match(req))
+}
+
 self.addEventListener('fetch', e => {
   if (e.request.url.match(location.origin)) {
     e.respondWith(staticCache(e.request))
+  } else if (e.request.url.match('api.giphy.com/v1/gifs/trending')) {
+    e.respondWith(fallbackCache(e.request))
+  } else if (e.request.url.match('giphy.com/media')) {
+    e.respondWith(staticCache(e.request, 'giphy'))
   }
 })
 
