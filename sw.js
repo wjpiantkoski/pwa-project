@@ -1,4 +1,4 @@
-const version = '1.3'
+const version = '1.4'
 
 const appAssets = [
   'index.html',
@@ -57,6 +57,18 @@ const fallbackCache = req => {
   .catch(err => caches.match(req))
 }
 
+const cleanGiphyCache = giphys => {
+  caches.open('giphy').then(cache => {
+    cache.keys().then(keys => {
+      keys.forEach(key => {
+        if (!giphys.includes(key.url)) {
+          caches.delete(key)
+        }
+      })
+    })
+  })
+}
+
 self.addEventListener('fetch', e => {
   if (e.request.url.match(location.origin)) {
     e.respondWith(staticCache(e.request))
@@ -64,6 +76,12 @@ self.addEventListener('fetch', e => {
     e.respondWith(fallbackCache(e.request))
   } else if (e.request.url.match('giphy.com/media')) {
     e.respondWith(staticCache(e.request, 'giphy'))
+  }
+})
+
+self.addEventListener('message', e => {
+  if (e.data.action === 'cleanGiphyCache') {
+    cleanGiphyCache(e.data.giphys)
   }
 })
 
